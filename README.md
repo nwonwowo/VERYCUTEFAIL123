@@ -1,1 +1,3 @@
-# VERYCUTEFAIL123
+# v-archive Rival
+友達や知らない人とスコア比較ができます。
+比較をする両者は、ともにv-archve.netのアカウントを持っている必要があります。
