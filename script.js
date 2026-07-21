@@ -176,7 +176,74 @@ function createTable(records) {
 
 /* renderData removed — individual A/B displays are disabled per user request */
 
-function createComparisonTable(dataA, dataB) {
+function buildComparisonRows(dataA, dataB) {
+  const recordsA = Array.isArray(dataA.records) ? dataA.records : [];
+  const recordsB = Array.isArray(dataB.records) ? dataB.records : [];
+  const recordMap = new Map();
+
+  recordsA.forEach((record) => {
+    const key = record.name || JSON.stringify(record);
+    recordMap.set(key, { a: record, b: null });
+  });
+
+  recordsB.forEach((record) => {
+    const key = record.name || JSON.stringify(record);
+    const existing = recordMap.get(key);
+    if (existing) {
+      existing.b = record;
+    } else {
+      recordMap.set(key, { a: null, b: record });
+    }
+  });
+
+  return Array.from(recordMap.entries()).map(([, pair]) => {
+    const aRecord = pair.a;
+    const bRecord = pair.b;
+    const name = aRecord?.name || bRecord?.name || '-';
+    const level = aRecord?.level ?? bRecord?.level ?? '-';
+    const scoreA = parseScore(aRecord?.score);
+    const scoreB = parseScore(bRecord?.score);
+    const diff = scoreA - scoreB;
+    const hasBoth = Boolean(aRecord && bRecord);
+    return {
+      name,
+      level,
+      scoreA,
+      scoreB,
+      diff,
+      aRecord,
+      bRecord,
+      hasBoth
+    };
+  });
+}
+
+function filterComparisonRows(rows) {
+  const selectedMode = currentDisplayMode;
+  const minLevel = Number(levelMinSelect.value);
+  const maxLevel = Number(levelMaxSelect.value);
+
+  return rows.filter((row) => {
+    const numericLevel = Number(row.level);
+    const matchesLevel = Number.isInteger(numericLevel) && numericLevel >= minLevel && numericLevel <= maxLevel;
+    const matchesMode = selectedMode === 'both' ? row.hasBoth : true;
+    return matchesLevel && matchesMode;
+  });
+}
+
+function sortComparisonRows(rows) {
+  const multiplier = comparisonSortState.direction === 'asc' ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const valueA = a[comparisonSortState.key];
+    const valueB = b[comparisonSortState.key];
+    if (typeof valueA === 'number' && typeof valueB === 'number') {
+      return (valueA - valueB) * multiplier;
+    }
+    return String(valueA).localeCompare(String(valueB), 'ja', { sensitivity: 'base' }) * multiplier;
+  });
+}
+
+function createComparisonTable(rows) {
   const table = document.createElement('table');
   const headerRow = document.createElement('tr');
   const headers = [
@@ -187,63 +254,9 @@ function createComparisonTable(dataA, dataB) {
     { key: 'diff', label: '(A - B)' }
   ];
 
-  const selectedMode = currentDisplayMode;
-  const minLevel = Number(levelMinSelect.value);
-  const maxLevel = Number(levelMaxSelect.value);
-
-  const buildRows = () => {
-    const recordsA = Array.isArray(dataA.records) ? dataA.records : [];
-    const recordsB = Array.isArray(dataB.records) ? dataB.records : [];
-    const recordMap = new Map();
-
-    recordsA.forEach((record) => {
-      const key = record.name || JSON.stringify(record);
-      recordMap.set(key, { a: record, b: null });
-    });
-
-    recordsB.forEach((record) => {
-      const key = record.name || JSON.stringify(record);
-      const existing = recordMap.get(key);
-      if (existing) {
-        existing.b = record;
-      } else {
-        recordMap.set(key, { a: null, b: record });
-      }
-    });
-
-    return Array.from(recordMap.entries()).map(([, pair]) => {
-      const aRecord = pair.a;
-      const bRecord = pair.b;
-      const name = aRecord?.name || bRecord?.name || '-';
-      const level = aRecord?.level ?? bRecord?.level ?? '-';
-      const scoreA = parseScore(aRecord?.score);
-      const scoreB = parseScore(bRecord?.score);
-      const diff = scoreA - scoreB;
-      const hasBoth = Boolean(aRecord && bRecord);
-      return { name, level, scoreA, scoreB, diff, aRecord, bRecord, hasBoth };
-    });
-  };
-
-  const filterRowsByLevel = (rows) => rows.filter((row) => {
-    const numericLevel = Number(row.level);
-    return Number.isInteger(numericLevel) && numericLevel >= minLevel && numericLevel <= maxLevel;
-  });
-
-  const sortRows = (rows) => {
-    const multiplier = comparisonSortState.direction === 'asc' ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const valueA = a[comparisonSortState.key];
-      const valueB = b[comparisonSortState.key];
-      if (typeof valueA === 'number' && typeof valueB === 'number') {
-        return (valueA - valueB) * multiplier;
-      }
-      return String(valueA).localeCompare(String(valueB), 'ja', { sensitivity: 'base' }) * multiplier;
-    });
-  };
-
-  const renderRows = (rows) => {
+  const renderRows = (displayRows) => {
     table.querySelectorAll('tr.data-row').forEach((row) => row.remove());
-    rows.forEach((rowData) => {
+    displayRows.forEach((rowData) => {
       const row = document.createElement('tr');
       row.className = 'data-row';
       const { name, level, scoreA, scoreB, diff, aRecord, bRecord } = rowData;
@@ -309,11 +322,9 @@ function createComparisonTable(dataA, dataB) {
         comparisonSortState.key = header.key;
         comparisonSortState.direction = 'asc';
       }
-      const rows = buildRows();
-      const filteredRows = filterRowsByLevel(rows);
-      const orderedRows = selectedMode === 'both'
-        ? [...sortRows(filteredRows)].sort((a, b) => Number(b.hasBoth) - Number(a.hasBoth))
-        : sortRows(filteredRows);
+      const orderedRows = currentDisplayMode === 'both'
+        ? [...sortComparisonRows(rows)].sort((a, b) => Number(b.hasBoth) - Number(a.hasBoth))
+        : sortComparisonRows(rows);
       renderRows(orderedRows);
       Array.from(headerRow.children).forEach((cell) => {
         const icon = cell.querySelector('.sort-icon');
@@ -328,11 +339,9 @@ function createComparisonTable(dataA, dataB) {
   });
   table.appendChild(headerRow);
 
-  const rows = buildRows();
-  const filteredRows = filterRowsByLevel(rows);
-  const orderedRows = selectedMode === 'both'
-    ? [...sortRows(filteredRows)].sort((a, b) => Number(b.hasBoth) - Number(a.hasBoth))
-    : sortRows(filteredRows);
+  const orderedRows = currentDisplayMode === 'both'
+    ? [...sortComparisonRows(rows)].sort((a, b) => Number(b.hasBoth) - Number(a.hasBoth))
+    : sortComparisonRows(rows);
   renderRows(orderedRows);
   return table;
 }
@@ -342,32 +351,34 @@ function parseScore(value) {
   return Number.isFinite(score) ? score : 0;
 }
 
-function compareRecords(recordsA, recordsB) {
-  const scoresA = recordsA.map((record) => parseScore(record.score));
-  const scoresB = recordsB.map((record) => parseScore(record.score));
-  const length = Math.min(scoresA.length, scoresB.length);
+function compareRows(rows) {
   let win = 0;
   let loss = 0;
   let draw = 0;
   let totalDiff = 0;
+  let extraA = 0;
+  let extraB = 0;
 
-  for (let i = 0; i < length; i += 1) {
-    const diff = scoresA[i] - scoresB[i];
+  rows.forEach((row) => {
+    const diff = row.scoreA - row.scoreB;
     totalDiff += diff;
     if (diff > 0) win += 1;
     else if (diff < 0) loss += 1;
     else draw += 1;
-  }
 
-  const averageDiff = length > 0 ? totalDiff / length : 0;
+    if (row.aRecord && !row.bRecord) extraA += 1;
+    if (row.bRecord && !row.aRecord) extraB += 1;
+  });
+
+  const averageDiff = rows.length > 0 ? totalDiff / rows.length : 0;
   return {
     win,
     loss,
     draw,
-    compareCount: length,
+    compareCount: rows.length,
     averageDiff,
-    extraA: scoresA.length - length,
-    extraB: scoresB.length - length
+    extraA,
+    extraB
   };
 }
 
@@ -384,17 +395,35 @@ function renderComparison(dataA, dataB) {
   filterControls.style.display = 'flex';
 
   // summary (shown above the table)
-  const summary = compareRecords(dataA.records, dataB.records);
+  const allRows = buildComparisonRows(dataA, dataB);
+  const filteredRows = filterComparisonRows(allRows);
+  const summary = compareRows(filteredRows);
   const extraMessages = [];
   if (summary.extraA > 0) extraMessages.push(`A にのみ存在するレコード: ${summary.extraA}`);
   if (summary.extraB > 0) extraMessages.push(`B にのみ存在するレコード: ${summary.extraB}`);
 
   const summaryText = document.createElement('pre');
-  summaryText.textContent = `比較対象件数: ${summary.compareCount}\nA 勝ち: ${summary.win}\nA 負け: ${summary.loss}\n引き分け: ${summary.draw}\n差分の平均: ${summary.averageDiff.toFixed(2)}${extraMessages.length ? `\n${extraMessages.join('\n')}` : ''}`;
+  summaryText.textContent = `比較対象件数: ${summary.compareCount}\n勝ち: ${summary.win}\n負け: ${summary.loss}\n引き分け: ${summary.draw}\n差分の平均: ${summary.averageDiff.toFixed(2)}${extraMessages.length ? `\n${extraMessages.join('\n')}` : ''}`;
   compareOutput.appendChild(summaryText);
 
+  const tweetButton = document.createElement('button');
+  tweetButton.type = 'button';
+  tweetButton.className = 'tweet-button';
+  tweetButton.textContent = '結果をツイート';
+  tweetButton.addEventListener('click', () => {
+    const playerA = inputA.value.trim() || 'nwonwowo';
+    const playerB = inputB.value.trim() || 'nwonwowo';
+    const minLevel = Number(levelMinSelect.value);
+    const maxLevel = Number(levelMaxSelect.value);
+    const levelRangeText = minLevel === maxLevel ? `レベル: ${minLevel}` : `レベル: ${minLevel}-${maxLevel}`;
+    const tweetText = `v-archive Rivalで ${playerA} と ${playerB} を比較しました！\n\n4BUTTON SC / ${levelRangeText} / 比較対象件数: ${summary.compareCount}\n勝ち: ${summary.win} / 負け: ${summary.loss} / 引き分け: ${summary.draw} / 差分の平均: ${summary.averageDiff.toFixed(2)}\n#varchiveRival`;
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}`;
+    window.open(tweetUrl, '_blank', 'noopener,noreferrer');
+  });
+  compareOutput.appendChild(tweetButton);
+
   // comparison table (below summary)
-  compareOutput.appendChild(createComparisonTable(dataA, dataB));
+  compareOutput.appendChild(createComparisonTable(filteredRows));
 }
 
 async function fetchData(inputValue) {
@@ -405,12 +434,15 @@ async function fetchData(inputValue) {
 }
 
 btn.addEventListener('click', async () => {
-  const valueA = inputA.value.trim();
-  const valueB = inputB.value.trim();
+  const defaultNickname = 'nwonwowo';
+  const valueA = inputA.value.trim() || defaultNickname;
+  const valueB = inputB.value.trim() || defaultNickname;
 
-  if (!valueA || !valueB) {
-    compareOutput.textContent = 'A と B の両方に文字列を入力してください。';
-    return;
+  if (inputA.value.trim() === '') {
+    inputA.value = defaultNickname;
+  }
+  if (inputB.value.trim() === '') {
+    inputB.value = defaultNickname;
   }
 
   filterControls.style.display = 'none';

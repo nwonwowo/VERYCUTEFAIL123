@@ -146,9 +146,59 @@
     .filter-row select {
       padding: 6px 8px;
     }
+    .help-section {
+      margin-bottom: 16px;
+      border: 1px solid #d7dce2;
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #f8fafc;
+    }
+    .help-section summary {
+      cursor: pointer;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .help-section .help-body {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .help-section ul {
+      margin: 8px 0 0 20px;
+      padding: 0;
+    }
+    .help-section li {
+      margin-bottom: 6px;
+    }
+    .tweet-button {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 999px;
+      background: #1da1f2;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .tweet-button:hover {
+      background: #0d8bd9;
+    }
   </style>
 </head>
 <body>
+  <details class="help-section">
+    <summary>これは何</summary>
+    <div class="help-body">
+      <p>このページは、v-archive に登録された 2 人の記録を比較するためのツールです。</p>
+      <ul>
+        <li>現時点では、<b>4BUTTON SC(NORMAL JUDGE)の記録のみ</b>ご利用いただけます。</li>
+        <li>比較したいユーザーの nickname は、v-archive に登録済みのものを入力してください。入力欄が空の場合は、自動的に「nwonwowo」が入力されます。</li>
+        <li>このページの作成には、部分的に生成AIを使用しています。</li>
+        <li>Twitter: <a href="https://twitter.com/CU_NextStage" target="_blank" rel="noopener noreferrer">んを(@CU_NextStage)</a></li>
+        <li>GitHub: <a href="https://github.com/nwonwowo/VERYCUTEFAIL123" target="_blank" rel="noopener noreferrer">nwonwowo/VERYCUTEFAIL123</a></li>
+      </ul>
+    </div>
+  </details>
   <h1>v-archive Rival</h1>
   <div>
     <label for="textInput1">Player A</label><br />
